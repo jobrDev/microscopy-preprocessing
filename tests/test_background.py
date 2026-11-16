@@ -1,8 +1,6 @@
-import numpy as np
 from microscopy_preprocessing import subtract_mean_background
 import numpy as np
 import pytest
-
 
 
 
