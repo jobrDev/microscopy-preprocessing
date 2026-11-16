@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "microscopy-preprocessing"
+version = "0.1.0"
+description = "General preprocessing functions for microscopy images"
+requires-python = ">=3.9"
+dependencies = ["numpy", "scipy", "scikit-image"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
