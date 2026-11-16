@@ -119,3 +119,23 @@ def test_zero_global_mean():
 
     with pytest.raises(ValueError, match="Global mean"):
         normalize_intensity(stack)
+
+
+
+def test_known_normalization_factors():
+    """Verify normalization against analytically known results."""
+
+    stack = np.zeros((3, 10, 10), dtype=np.float32)
+
+    stack[0] = 10
+    stack[1] = 20
+    stack[2] = 30
+
+    normalized = normalize_intensity(stack)
+
+    # Global mean = 20
+    # Expected slice means after normalization = [20, 20, 20]
+
+    expected = np.full((3, 10, 10), 20, dtype=np.float32)
+
+    assert np.allclose(normalized, expected)
