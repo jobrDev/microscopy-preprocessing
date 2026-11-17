@@ -10,7 +10,7 @@ def _prepare_drift_stack(images):
     Validate and prepare a microscopy image stack.
     """
     images = np.asarray(images)
-
+    
     if images.ndim == 2:
         raise ValueError(
             "Drift correction requires an image stack or a separate reference image."
