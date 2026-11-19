@@ -8,7 +8,7 @@ from microscopy_preprocessing.psf_otf import psf_from_otf
 
 
 
-def edgetaper(image: np.ndarray, psf: np.ndarray) -> np.ndarray:
+def psf_edge_taper(image: np.ndarray, psf: np.ndarray) -> np.ndarray:
     r"""
     Reduce boundary discontinuities in an image by blending it with a
     PSF-blurred version of itself.
@@ -133,7 +133,7 @@ def edgetaper_from_otf(
     otf_power: float = 3.0,
 ) -> np.ndarray:
     """Convenience wrapper: build a PSF from `otf` and edge-taper `image`."""
-    return edgetaper(image, psf_from_otf(otf, size=size, otf_power=otf_power))
+    return psf_edge_taper(image, psf_from_otf(otf, size=size, otf_power=otf_power))
 
 
 
@@ -213,7 +213,7 @@ def _r_power_kernel(
 
 
 
-def damp_edge_outside(
+def extrapolate_image_edges(
     image: ArrayLike,
     border: float | Sequence[float] = 0.1,
     kernel: ArrayLike | None = None,
