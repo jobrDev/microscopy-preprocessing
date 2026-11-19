@@ -2,53 +2,7 @@ import numpy as np
 from numpy.fft import fft, fftshift, ifft, ifft2, ifftshift, irfftn, rfftn
 from numpy.typing import ArrayLike, NDArray
 from collections.abc import Sequence
-
-
-# ---------------------------------------------------------
-# psf/otf edge dapming | edgetaper 
-# ---------------------------------------------------------
-
-
-def psf_from_otf(otf: np.ndarray, size: int, otf_power: float = 1.0) -> np.ndarray:
-    """
-    Build a small, normalized PSF kernel from an OTF for edge tapering.
-
-    Parameters
-    ----------
-    otf : np.ndarray
-        2D centered OTF (DC at index n // 2), on the same pixel grid as the
-        image to be tapered. Only its magnitude is used.
-    size : int
-        Half-width of the kernel in pixels; output shape is (2*size+1, 2*size+1).
-    otf_power : float
-        Exponent applied to |OTF|. Larger values give a broader PSF and
-        therefore a smoother taper.
-
-    Returns
-    -------
-    np.ndarray
-        PSF kernel (float64) summing to 1.
-    """
-    otf = np.asarray(otf)
-    if otf.ndim != 2:
-        raise ValueError(f"otf must be 2D, got {otf.ndim}D")
-    if size < 1:
-        raise ValueError("size must be >= 1")
-
-    h, w = otf.shape
-    if size > min(h, w) // 2 - 1:
-        raise ValueError(f"size={size} too large for OTF of shape {otf.shape}")
-
-    psf = fftshift(ifft2(ifftshift(np.abs(otf) ** otf_power))).real
-
-    cy, cx = h // 2, w // 2
-    psf = psf[cy - size : cy + size + 1, cx - size : cx + size + 1]
-
-    total = psf.sum()
-    if not np.isfinite(total) or total <= 0:
-        raise ValueError("PSF derived from OTF has a non-positive sum; check the OTF")
-    return psf / total  # normalize AFTER cropping
-
+from microscopy_preprocessing.psf_otf import psf_from_otf
 
 
 
