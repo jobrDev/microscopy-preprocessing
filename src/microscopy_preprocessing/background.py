@@ -2,55 +2,107 @@
 import numpy as np
 
 
+def subtract_mean_background(
+    datr: np.ndarray,
+    background: np.ndarray,
+) -> np.ndarray:
+    r"""
+    Subtract the mean background image from a microscopy image stack.
 
-def subtract_mean_background(datr: np.ndarray, bg_count: int, ignore_last=False) -> np.ndarray:
-    """
-    Subtract the mean background from the measurement images.
+    The function calculates the pixel-wise mean of a separate background
+    stack and subtracts this mean background image from every frame of the
+    measurement stack.
+
+    All image stacks in this preprocessing repository follow the convention
+    ``(n, height, width)``, where ``n`` is the number of frames, followed by
+    the image height and width.
+
+    The measurement and background stacks must have matching spatial
+    dimensions, but can contain different numbers of frames.
+    
+    Mathematically, the mean background image is calculated as
+
+    .. math::
+
+        B_{\\mathrm{mean}}(y, x) =
+        \\frac{1}{N_{\\mathrm{bg}}}
+        \\sum_{j=1}^{N_{\\mathrm{bg}}}
+        B_j(y, x)
+
+    The mean background is then subtracted from every measurement frame:
+
+    .. math::
+
+        D_{\\mathrm{corrected},i}(y, x) =
+        D_i(y, x) - B_{\\mathrm{mean}}(y, x)
 
     Parameters
     ----------
     datr : np.ndarray
-        Input grayscale stack with shape (frames, height, width).
-    bg_count : int
-        Number of background frames at the end of the stack.
-    ignore_last : bool, default=False
-        If True, discard the final frame before splitting the stack.
+        Raw measurement image stack with shape
+        ``(n_frames, height, width)``.
+
+    background : np.ndarray
+        Background image stack with shape
+        ``(n_background_frames, height, width)``.
+        The spatial dimensions must match those of ``datr``.
 
     Returns
     -------
     np.ndarray
-        Background-corrected measurement stack as float32.
+        Background-corrected measurement stack with shape identical to
+        ``datr`` and data type ``float32``.
+
+    Raises
+    ------
+    ValueError
+        If either input is not a three-dimensional stack, if their spatial
+        dimensions do not match, or if the background stack is empty.
+
+    TypeError
+        If either input contains non-numeric data.
+
+    Notes
+    -----
+    The input arrays are not modified. Both stacks are converted to
+    ``float32`` before subtraction to avoid unsigned integer underflow.
     """
 
     if datr.ndim != 3:
         raise ValueError(
-            f"Expected a grayscale stack with shape "
-            f"(frames, height, width), got {datr.shape}."
+            f"Expected datr with shape (n_frames, height, width), "
+            f"got {datr.shape}."
+        )
+
+    if background.ndim != 3:
+        raise ValueError(
+            f"Expected background with shape "
+            f"(n_frames, height, width), got {background.shape}."
         )
 
     if not np.issubdtype(datr.dtype, np.number):
-        raise TypeError(f"Unsupported image data type: {datr.dtype}")
+        raise TypeError(f"Unsupported datr data type: {datr.dtype}")
 
-    if bg_count < 1:
-        raise ValueError("bg_count must be at least 1.")
+    if not np.issubdtype(background.dtype, np.number):
+        raise TypeError(
+            f"Unsupported background data type: {background.dtype}"
+        )
+
+    if datr.shape[1:] != background.shape[1:]:
+        raise ValueError(
+            f"Spatial dimensions must match. "
+            f"Got datr: {datr.shape[1:]}, "
+            f"background: {background.shape[1:]}."
+        )
+
+    if background.shape[0] == 0:
+        raise ValueError("Background stack must contain at least one frame.")
 
     datr = datr.astype(np.float32, copy=False)
+    background = background.astype(np.float32, copy=False)
 
-    if ignore_last:
-        if len(datr) < 2:
-            raise ValueError("Cannot ignore the last frame: stack is too short.")
-        datr = datr[:-1]
+    background_mean = np.mean(background, axis=0)
 
-    if bg_count >= len(datr):
-        raise ValueError(f"bg_count={bg_count} leaves no measurement frames.")
-
-    measurement_images = datr[:-bg_count]
-    bg_images = datr[-bg_count:]
-
-    bg_mean = np.mean(bg_images, axis=0)
-
-    corrected_stack = measurement_images - bg_mean[None, :, :]
+    corrected_stack = datr - background_mean[None, :, :]
 
     return corrected_stack
-
-
