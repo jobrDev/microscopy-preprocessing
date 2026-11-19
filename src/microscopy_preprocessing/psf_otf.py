@@ -9,7 +9,7 @@ def generate_amplitude_psf(size: int, scale: float) -> np.ndarray:
     circular optical aperture.
 
     The amplitude PSF is described by the jinc function:
-
+    
     .. math::
 
         A(r) = \frac{2 J_1(v)}{v},
