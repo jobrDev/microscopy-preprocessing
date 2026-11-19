@@ -21,9 +21,9 @@ spreads it into a **point-spread function** (PSF). In a linear,
 shift-invariant approximation, an object intensity distribution `O` forms an
 image
 
-\[
+$$
 I(\mathbf r) = (O * h)(\mathbf r),
-\]
+$$
 
 where `h` is the intensity PSF and `*` is convolution. The PSF therefore
 sets lateral resolution and the degree to which neighbouring structures blur
@@ -32,9 +32,9 @@ into one another.
 For an unaberrated circular pupil, the focal-plane field is radially symmetric
 and follows a jinc function,
 
-\[
+$$
 A(r) = \frac{2J_1(v)}{v},
-\]
+$$
 
 where `J_1` is the first-order Bessel function and `v` is a dimensionless
 radial coordinate. In physical coordinates it is proportional to
@@ -49,9 +49,9 @@ resolution.
 The optical field is generally complex-valued. Its complex amplitude carries
 both magnitude and phase, while a detector measures irradiance (intensity):
 
-\[
+$$
 I(r) = |A(r)|^2.
-\]
+$$
 
 Thus an amplitude PSF may have negative or complex oscillations, whereas an
 intensity PSF is non-negative. They answer different physical questions:
@@ -80,15 +80,15 @@ boundaries.
 The Fourier transform of the intensity PSF is the **optical transfer
 function** (OTF):
 
-\[
+$$
 H(f_x,f_y) = \mathcal F\{h(x,y)\}.
-\]
+$$
 
 The image model becomes multiplication in spatial-frequency space,
 
-\[
+$$
 \mathcal F\{I\} = \mathcal F\{O\}\,H.
-\]
+$$
 
 The magnitude `|H|` is the modulation transfer function (MTF): it describes
 how strongly contrast at each spatial frequency is transmitted. Low
@@ -124,9 +124,9 @@ kernel define a processing filter rather than a calibrated optical model.
 
 A simple camera-image model is
 
-\[
+$$
 D_i(y,x) = S_i(y,x) + B(y,x) + N_i(y,x),
-\]
+$$
 
 where `S` is the desired specimen signal, `B` is additive background, and
 `N` contains photon, detector, and read noise. Background can include camera
@@ -136,9 +136,9 @@ part that is present without the specimen signal.
 
 Averaging independent background frames gives the pixelwise estimator
 
-\[
+$$
 \hat B(y,x) = \frac{1}{N_{bg}}\sum_j B_j(y,x).
-\]
+$$
 
 The random component of this estimate decreases approximately as
 `1/sqrt(N_bg)` when frames are independent and similarly distributed.
@@ -163,17 +163,17 @@ because of bleaching, exposure variation, illumination changes, or detector
 gain. When the variation is well represented by one scalar per frame, a
 multiplicative model is appropriate:
 
-\[
+$$
 D_i(y,x) \approx g_i S_i(y,x).
-\]
+$$
 
 Mean-intensity normalization estimates a relative gain from each frame mean
 and rescales all frame means to a common reference, often the stack-wide
 mean:
 
-\[
+$$
 f_i = \frac{\mu_{global}}{\mu_i}, \qquad D'_i = f_i D_i.
-\]
+$$
 
 It preserves within-frame intensity ratios but deliberately removes
 between-frame changes in total signal. This is desirable for visual
@@ -205,9 +205,9 @@ its Fourier transform by a linear ramp while leaving its magnitude unchanged.
 For reference transform `F_ref` and moving-image transform `F_mov`, the
 normalized cross-power spectrum is
 
-\[
+$$
 R(u,v) = \frac{F_{ref}(u,v)F_{mov}^*(u,v)}{|F_{ref}(u,v)F_{mov}^*(u,v)|}.
-\]
+$$
 
 Its inverse transform forms a correlation surface with a peak at the relative
 translation. Normalizing removes much of the influence of multiplicative
@@ -241,10 +241,10 @@ changes the assumption made outside the field of view.
 Edge tapering blends the original image with a blurred version near its
 boundary:
 
-\[
+$$
 I_{tapered}(\mathbf r) = \alpha(\mathbf r) I(\mathbf r) +
 [1-\alpha(\mathbf r)](I*h)(\mathbf r).
-\]
+$$
 
 The weight `\alpha` is close to one in the interior and falls toward zero at
 the edges. The interior therefore remains close to measured data, while the
@@ -267,9 +267,9 @@ region from pixels near the original edge. With source image `D`, binary (or
 confidence) weights `W`, and an extrapolation kernel `K`, normalized
 convolution uses
 
-\[
+$$
 E(\mathbf r) = \frac{(D*K)(\mathbf r)}{(W*K)(\mathbf r)}.
-\]
+$$
 
 The denominator corrects for missing samples so that the value is a weighted
 average rather than one that darkens merely because fewer source pixels are
@@ -278,9 +278,9 @@ available. Restoring the original central region keeps measured pixels exact.
 An inverse-distance power kernel assigns more influence to nearby boundary
 samples:
 
-\[
+$$
 K(r) = \max\left(\frac{1}{r} - \frac{1}{R}, 0\right)^p.
-\]
+$$
 
 The finite cutoff `R` limits its support, and the exponent `p` controls how
 quickly distant samples lose influence. This is a smooth continuation prior,
