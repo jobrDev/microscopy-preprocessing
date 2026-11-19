@@ -7,24 +7,77 @@ from microscopy_preprocessing.psf_otf import psf_from_otf
 
 
 
+
 def edgetaper(image: np.ndarray, psf: np.ndarray) -> np.ndarray:
-    """
-    Edge-taper an image by blending it with a PSF-blurred copy near the borders.
+    r"""
+    Reduce boundary discontinuities in an image by blending it with a
+    PSF-blurred version of itself.
+
+    Edge tapering reduces strong intensity transitions at image boundaries,
+    which can otherwise introduce ringing artifacts during subsequent
+    Fourier-based image processing, particularly deconvolution.
+
+    A spatially varying blending coefficient is calculated from the PSF.
+    The original image is retained in the interior, while the contribution
+    of the blurred image increases towards the boundaries.
+
+    Mathematically, the edge-tapered image is calculated as
+
+    .. math::
+
+        I_{\mathrm{tapered}}(\mathbf{r}) =
+        \alpha(\mathbf{r}) I(\mathbf{r})
+        +
+        [1-\alpha(\mathbf{r})]
+        (I * P)(\mathbf{r})
+
+    where :math:`I` is the original image, :math:`P` is the normalized
+    PSF, :math:`*` denotes convolution, and :math:`\alpha` is the
+    spatially varying blending coefficient.
+
+    The blending coefficient approaches one in the interior and zero
+    towards the image boundaries:
+
+    .. math::
+
+        \alpha(\mathbf{r}) \approx
+        \begin{cases}
+            1, & \text{interior} \\
+            0, & \text{boundaries}
+        \end{cases}
+
+    The convolution is performed efficiently in Fourier space using
+    zero-padding and a shift of the PSF center to the origin.
 
     Parameters
     ----------
     image : np.ndarray
-        n-D input image.
+        Input image with arbitrary dimensionality. The image is converted
+        to ``float32`` before processing.
+
     psf : np.ndarray
-        PSF with the same ndim as `image`, strictly smaller than the image on
-        every non-singleton axis, centered at shape // 2. Axes where the PSF
-        has length 1 are not tapered.
+        Point spread function with the same number of dimensions as
+        ``image``. The PSF must be strictly smaller than the image along
+        every axis with a PSF dimension greater than one. Its center is
+        assumed to be located at ``psf.shape // 2``.
+
+        Axes along which the PSF has length one are not tapered.
 
     Returns
     -------
     np.ndarray
-        float32 array, same shape as `image`.
+        Edge-tapered image with the same shape as the input and dtype
+        ``float32``. Output intensities are clipped to the minimum and
+        maximum intensity values of the converted input image.
+
+    Raises
+    ------
+    ValueError
+        If the image and PSF have different dimensionalities, if the
+        PSF is not smaller than the image along a non-singleton axis,
+        or if the PSF has a non-positive sum.
     """
+
     image = np.asarray(image, dtype=np.float32)
     psf = np.asarray(psf, dtype=np.float32)
 
@@ -90,9 +143,64 @@ def edgetaper_from_otf(
 # ---------------------------------------------------------
 
 
+
 def _r_power_kernel(
     shape: tuple[int, ...], rborder: NDArray[np.integer], power: float
 ) -> NDArray[np.float64]:
+    r"""
+    Construct a centered radial kernel with inverse-distance power decay.
+
+    The kernel is used for extrapolating image intensities into an
+    extended boundary region. Its weights decrease with increasing
+    distance from the kernel center and become zero beyond a specified
+    radial cutoff.
+
+    The radial kernel is defined as
+
+    .. math::
+
+        K(r) =
+        \max\left(
+            \frac{1}{r} - \frac{1}{R},
+            0
+        \right)^{p}
+
+    where :math:`r` is the Euclidean distance from the kernel center,
+    :math:`R` is the radial cutoff, and :math:`p` is the specified
+    exponent.
+
+    The cutoff radius is calculated from the border extension as
+
+    .. math::
+
+        R = \sqrt{2}\,\|\mathbf{b}\|_2
+
+    where :math:`\mathbf{b}` contains the number of additional pixels
+    introduced along each image axis.
+
+    The kernel is centered at ``shape // 2``. Its center value is set
+    to zero to avoid a singularity at :math:`r=0`.
+
+    Parameters
+    ----------
+    shape : tuple of int
+        Shape of the output kernel, corresponding to the dimensions of
+        the extended image.
+
+    rborder : np.ndarray
+        Number of additional pixels introduced along each axis.
+
+    power : float
+        Exponent controlling the radial decay of the kernel weights.
+
+    Returns
+    -------
+    np.ndarray
+        Centered radial kernel with the requested shape and dtype
+        ``float64``. Values are non-negative and decrease with distance
+        from the kernel center.
+    """
+
     """Centered kernel max(1/r - 1/R, 0)**power, R = sqrt(2)*||rborder||."""
     grids = np.ogrid[tuple(slice(0, n) for n in shape)]
     r2 = np.zeros(shape, dtype=np.float64)
@@ -104,6 +212,7 @@ def _r_power_kernel(
     return np.maximum(1.0 / r - 1.0 / big_r, 0.0) ** power
 
 
+
 def damp_edge_outside(
     image: ArrayLike,
     border: float | Sequence[float] = 0.1,
@@ -111,31 +220,126 @@ def damp_edge_outside(
     usepixels: int = 2,
     power: float = 3.0,
 ) -> NDArray[np.floating]:
-    """
-    Extrapolate an image outward by normalized convolution with a 1/r^power kernel.
+    r"""
+    Extrapolate an image beyond its original boundaries using normalized
+    convolution with a radial inverse-distance power kernel.
 
-    Output is LARGER than the input: shape = image.shape + ceil(border * image.shape).
-    The original image is placed in the center of the output; the new border
-    region is filled with a smooth, weighted average of the outermost pixels.
+    The output image is larger than the input image. The original image
+    is preserved in the center, while the newly introduced boundary
+    region is filled using a weighted average of the outermost pixels.
+
+    This approach provides a smooth extrapolation of image intensities
+    beyond the original field of view. It can be used to reduce boundary
+    discontinuities before Fourier-based image processing.
+
+    The number of additional pixels is calculated independently for
+    each axis:
+
+    .. math::
+
+        b_i = \lceil \beta_i N_i \rceil
+
+    where :math:`N_i` is the original image dimension along axis :math:`i`
+    and :math:`\beta_i` is the corresponding border fraction.
+
+    The resulting output dimensions are
+
+    .. math::
+
+        N_{i,\mathrm{out}} = N_i + b_i
+
+    The original image is centered within the extended output array.
+
+    Extrapolation is performed using normalized convolution. Given
+    source data :math:`D`, source weights :math:`W`, and kernel :math:`K`,
+    the extrapolated intensity is calculated as
+
+    .. math::
+
+        I_{\mathrm{out}}(\mathbf{r}) =
+        \frac{
+            (D * K)(\mathbf{r})
+        }{
+            (W * K)(\mathbf{r})
+        }
+
+    where :math:`*` denotes convolution.
+
+    The source weights are one in the selected boundary region and zero
+    elsewhere. Consequently, only the specified outermost pixels
+    contribute to the extrapolation.
+
+    If no custom kernel is provided, a radial inverse-distance power
+    kernel is generated:
+
+    .. math::
+
+        K(r) =
+        \max\left(
+            \frac{1}{r} - \frac{1}{R},
+            0
+        \right)^p
+
+    The original image is restored in the central region after
+    extrapolation to ensure that its pixel values remain unchanged.
 
     Parameters
     ----------
-    image : n-D real array.
-    border : float or sequence of float
-        Fraction of the image size to add (total, split around the center).
-        A sequence gives one value per axis.
-    kernel : optional array of shape ``output_shape``, centered at ``shape // 2``.
-        Default: max(1/r - 1/R, 0)**power with R = sqrt(2) * ||added pixels||.
-    usepixels : int
-        Number of outermost pixels per edge used as the source. 0 uses all pixels.
-    power : float
-        Exponent of the default kernel.
+    image : ArrayLike
+        Input real-valued image of arbitrary dimensionality.
+        Complex-valued images are not supported.
+
+    border : float or sequence of float, optional
+        Fraction of the original image dimensions to add as an extension.
+        A scalar applies the same fraction to every axis. A sequence
+        specifies an individual fraction for each axis.
+
+        The total number of additional pixels is split approximately
+        equally between both sides of each axis through center alignment.
+        Default is 0.1.
+
+    kernel : ArrayLike, optional
+        Custom extrapolation kernel with shape equal to the extended
+        output image shape. The kernel is assumed to be centered at
+        ``shape // 2``.
+
+        If None, a radial inverse-distance power kernel is generated
+        automatically using ``power``. Default is None.
+
+    usepixels : int, optional
+        Number of outermost pixels per edge used as the source region
+        for extrapolation. The selected boundary region contributes
+        to the normalized convolution.
+
+        If zero, all original image pixels are used. Default is 2.
+
+    power : float, optional
+        Exponent controlling the radial decay of the automatically
+        generated kernel. Only used when ``kernel`` is None.
+        Default is 3.0.
 
     Returns
     -------
-    np.ndarray, shape ``image.shape + ceil(border * image.shape)``.
-    float32 for integer input, otherwise the input's floating dtype.
+    np.ndarray
+        Extended image with shape
+
+        ``image.shape + ceil(border * image.shape)``.
+
+        Integer input is converted to ``float32``. Floating-point input
+        retains its original floating-point data type. The original image
+        is preserved in the central region.
+
+    Raises
+    ------
+    TypeError
+        If the input image contains complex-valued data.
+
+    ValueError
+        If the border specification is invalid, if no additional pixels
+        are introduced, if the custom kernel has an incorrect shape,
+        or if ``usepixels`` is too large for the input image.
     """
+
     image = np.asarray(image)
     if np.iscomplexobj(image):
         raise TypeError("complex images are not supported")
@@ -187,3 +391,4 @@ def damp_edge_outside(
 
     out[region] = img  # restore the original in the middle
     return out.astype(out_dtype)
+

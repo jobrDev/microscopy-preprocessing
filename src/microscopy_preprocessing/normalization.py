@@ -3,20 +3,64 @@ import numpy as np
 
 
 def normalize_intensity(dat: np.ndarray) -> np.ndarray:
-    """
-    Normalize individual slices of a 3D image stack to the global mean.
+    r"""
+    Normalize each slice of a 3D image stack to the global mean intensity.
+
+    Each image slice is independently scaled such that its mean intensity
+    matches the global mean intensity of the entire stack.
+
+    All image stacks follow the convention ``(n, height, width)``, where
+    ``n`` denotes the number of frames, followed by the image height and
+    width.
+
+    The global mean intensity is calculated as
+
+    .. math::
+
+        \mu_{\mathrm{global}} =
+        \frac{1}{N H W}
+        \sum_{i=1}^{N}
+        \sum_{y=1}^{H}
+        \sum_{x=1}^{W}
+        D_i(y,x)
+
+    The mean intensity of each individual slice is
+
+    .. math::
+
+        \mu_i =
+        \frac{1}{H W}
+        \sum_{y=1}^{H}
+        \sum_{x=1}^{W}
+        D_i(y,x)
+
+    A normalization factor is calculated for each slice:
+
+    .. math::
+
+        f_i = \frac{\mu_{\mathrm{global}}}{\mu_i}
+
+    Each slice is then multiplied by its corresponding normalization factor:
+
+    .. math::
+
+        D_{\mathrm{normalized},i}(y,x) =
+        f_i \cdot D_i(y,x)
+
+    This ensures that all slices have the same mean intensity, equal to
+    the global mean intensity of the original stack.
 
     Parameters
     ----------
     dat : np.ndarray
-        Input image stack with shape (n, height, width).
+        Input image stack with shape ``(n, height, width)``.
         Intensities must be finite and non-negative.
 
     Returns
     -------
     np.ndarray
-        Normalized image stack with dtype float32.
-        The original input is not modified.
+        Normalized image stack with dtype ``float32`` and the same shape
+        as the input. The original input is not modified.
 
     Raises
     ------
@@ -26,6 +70,7 @@ def normalize_intensity(dat: np.ndarray) -> np.ndarray:
         If input has invalid dimensions, contains non-finite or negative
         values, or contains zero-mean slices.
     """
+
 
     # Convert to float32 and create an independent copy.
     try:
